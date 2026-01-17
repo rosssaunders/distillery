@@ -1,0 +1,20 @@
+[package]
+name = "dstl"
+version = "0.1.0"
+edition = "2024"
+description = "Distillery - Distill PR diffs into reviewable narratives. Built for the AI code review era."
+license = "MIT"
+repository = "https://github.com/rosssaunders/distillery"
+keywords = ["github", "pull-request", "code-review", "cli", "ai"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+ratatui = "0.30.0"
+crossterm = "0.29.0"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.13.1", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+dotenvy = "0.15"
