@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::process::Command;
 
-use crate::types::{CiStatus, PrContext, PrListItem, RepoListItem};
+use super::types::{CiStatus, PrContext, PrListItem, RepoListItem};
 
 /// Response from `gh pr view --json`
 #[derive(Debug, Deserialize)]
@@ -54,7 +54,7 @@ struct GhStatusCheck {
 }
 
 impl GhPrListItem {
-    fn to_list_item(self, current_user: &str) -> PrListItem {
+    fn into_list_item(self, current_user: &str) -> PrListItem {
         let review_requested = self.review_requests.iter().any(|r| {
             r.login.as_deref() == Some(current_user) || r.name.as_deref() == Some(current_user)
         });
@@ -111,10 +111,10 @@ impl GhPrListItem {
                 }
             }
 
-            if let Some(status) = &check.status {
-                if status == "IN_PROGRESS" || status == "QUEUED" || status == "PENDING" {
-                    has_pending = true;
-                }
+            if let Some(status) = &check.status
+                && (status == "IN_PROGRESS" || status == "QUEUED" || status == "PENDING")
+            {
+                has_pending = true;
             }
         }
 
@@ -336,7 +336,7 @@ pub fn fetch_pr_list(owner: &str, repo: &str) -> Result<Vec<PrListItem>> {
 
     let mut items: Vec<PrListItem> = pr_list
         .into_iter()
-        .map(|p| p.to_list_item(&current_user))
+        .map(|p| p.into_list_item(&current_user))
         .collect();
 
     // Sort: review_requested + non-draft first, then non-draft, then drafts
@@ -373,8 +373,6 @@ struct GhRepoListItem {
     is_fork: bool,
     #[serde(rename = "isPrivate")]
     is_private: bool,
-    #[serde(rename = "pushedAt")]
-    pushed_at: Option<String>,
 }
 
 /// Fetch repositories the user has access to, sorted by most recently pushed
@@ -387,7 +385,7 @@ pub fn fetch_repo_list() -> Result<Vec<RepoListItem>> {
             "--limit",
             "50",
             "--json",
-            "nameWithOwner,description,isFork,isPrivate,pushedAt",
+            "nameWithOwner,description,isFork,isPrivate",
         ])
         .output()
         .context("Failed to execute gh repo list")?;
@@ -408,7 +406,6 @@ pub fn fetch_repo_list() -> Result<Vec<RepoListItem>> {
                 owner: owner.to_string(),
                 name: name.to_string(),
                 description: r.description.unwrap_or_default(),
-                open_pr_count: 0, // Not fetched - too many API calls
                 is_fork: r.is_fork,
                 is_private: r.is_private,
             }
@@ -428,23 +425,23 @@ pub fn parse_pr_reference(input: &str) -> Result<(String, String, u32)> {
             let number: u32 = number_str.parse().context("Invalid PR number")?;
 
             // Find owner and repo
-            if let Some(pos) = parts.iter().position(|&p| p == "github.com") {
-                if parts.len() > pos + 2 {
-                    let owner = parts[pos + 1].to_string();
-                    let repo = parts[pos + 2].to_string();
-                    return Ok((owner, repo, number));
-                }
+            if let Some(pos) = parts.iter().position(|&p| p == "github.com")
+                && parts.len() > pos + 2
+            {
+                let owner = parts[pos + 1].to_string();
+                let repo = parts[pos + 2].to_string();
+                return Ok((owner, repo, number));
             }
         }
         anyhow::bail!("Invalid GitHub PR URL format");
     }
 
     // Try owner/repo#number format
-    if let Some((repo_part, number_str)) = input.split_once('#') {
-        if let Some((owner, repo)) = repo_part.split_once('/') {
-            let number: u32 = number_str.parse().context("Invalid PR number")?;
-            return Ok((owner.to_string(), repo.to_string(), number));
-        }
+    if let Some((repo_part, number_str)) = input.split_once('#')
+        && let Some((owner, repo)) = repo_part.split_once('/')
+    {
+        let number: u32 = number_str.parse().context("Invalid PR number")?;
+        return Ok((owner.to_string(), repo.to_string(), number));
     }
 
     // Try owner/repo number format (two args)
