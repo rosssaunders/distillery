@@ -1,4 +1,4 @@
-use crate::types::PrContext;
+use super::types::PrContext;
 
 pub fn build_system_prompt() -> String {
     r#"You are a senior staff engineer performing a code review. Your task is to transform a raw PR diff into a structured narrative that helps reviewers understand the changes quickly and thoroughly.

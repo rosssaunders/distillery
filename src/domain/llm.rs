@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::prompt::{build_system_prompt, build_user_prompt};
-use crate::types::{PrContext, Story};
+use super::prompt::{build_system_prompt, build_user_prompt};
+use super::types::{PrContext, Story};
 
 #[derive(Debug, Serialize)]
 struct OpenAiRequest {

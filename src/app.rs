@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::types::{PrContext, PrListItem, RepoListItem, ReviewAction, Story};
+use crate::domain::types::{PrContext, PrListItem, RepoListItem, ReviewAction, Story};
 
 /// Application state
 #[derive(Debug, Clone)]
@@ -65,6 +65,8 @@ pub struct App {
     pub repo_selected: usize,
     /// Currently selected repo (owner, name)
     pub current_repo: Option<(String, String)>,
+    /// Currently selected PR number (if known)
+    pub current_pr_number: Option<u32>,
 }
 
 /// Text content for the three review actions
@@ -96,23 +98,8 @@ impl App {
             repo_list: Vec::new(),
             repo_selected: 0,
             current_repo: None,
+            current_pr_number: None,
         }
-    }
-
-    /// Create app starting with repo selector
-    pub fn new_with_repo_selector() -> Self {
-        let mut app = Self::new();
-        app.state = AppState::LoadingRepoList;
-        app
-    }
-
-    /// Create app starting with PR picker for a specific repo
-    pub fn new_with_picker(owner: &str, repo: &str) -> Self {
-        let mut app = Self::new();
-        app.state = AppState::LoadingPrList;
-        app.show_picker = true;
-        app.current_repo = Some((owner.to_string(), repo.to_string()));
-        app
     }
 
     /// Get the current action text
@@ -142,12 +129,12 @@ impl App {
 
     /// Move to next feature
     pub fn next_feature(&mut self) {
-        if let Some(story) = &self.story {
-            if self.selected_feature < story.narrative.len().saturating_sub(1) {
-                self.selected_feature += 1;
-                self.selected_diff = 0;
-                self.scroll_offset = 0;
-            }
+        if let Some(story) = &self.story
+            && self.selected_feature < story.narrative.len().saturating_sub(1)
+        {
+            self.selected_feature += 1;
+            self.selected_diff = 0;
+            self.scroll_offset = 0;
         }
     }
 
@@ -162,12 +149,11 @@ impl App {
 
     /// Move to next diff within current feature
     pub fn next_diff(&mut self) {
-        if let Some(story) = &self.story {
-            if let Some(feature) = story.narrative.get(self.selected_feature) {
-                if self.selected_diff < feature.diff_blocks.len().saturating_sub(1) {
-                    self.selected_diff += 1;
-                }
-            }
+        if let Some(story) = &self.story
+            && let Some(feature) = story.narrative.get(self.selected_feature)
+            && self.selected_diff < feature.diff_blocks.len().saturating_sub(1)
+        {
+            self.selected_diff += 1;
         }
     }
 
@@ -195,14 +181,14 @@ impl App {
 
     /// Get viewed/total diff counts for a feature
     pub fn feature_progress(&self, feature_idx: usize) -> (usize, usize) {
-        if let Some(story) = &self.story {
-            if let Some(feature) = story.narrative.get(feature_idx) {
-                let total = feature.diff_blocks.len();
-                let viewed = (0..total)
-                    .filter(|&diff_idx| self.viewed_diffs.contains(&(feature_idx, diff_idx)))
-                    .count();
-                return (viewed, total);
-            }
+        if let Some(story) = &self.story
+            && let Some(feature) = story.narrative.get(feature_idx)
+        {
+            let total = feature.diff_blocks.len();
+            let viewed = (0..total)
+                .filter(|&diff_idx| self.viewed_diffs.contains(&(feature_idx, diff_idx)))
+                .count();
+            return (viewed, total);
         }
         (0, 0)
     }
@@ -215,34 +201,6 @@ impl App {
             return (viewed, total);
         }
         (0, 0)
-    }
-
-    /// Cycle to next action
-    pub fn next_action(&mut self) {
-        self.selected_action = match self.selected_action {
-            ReviewAction::RequestChanges => ReviewAction::ClarificationQuestions,
-            ReviewAction::ClarificationQuestions => ReviewAction::NextPr,
-            ReviewAction::NextPr => ReviewAction::RequestChanges,
-        };
-    }
-
-    /// Cycle to previous action
-    pub fn prev_action(&mut self) {
-        self.selected_action = match self.selected_action {
-            ReviewAction::RequestChanges => ReviewAction::NextPr,
-            ReviewAction::ClarificationQuestions => ReviewAction::RequestChanges,
-            ReviewAction::NextPr => ReviewAction::ClarificationQuestions,
-        };
-    }
-
-    /// Scroll down in feature view
-    pub fn scroll_down(&mut self) {
-        self.scroll_offset = self.scroll_offset.saturating_add(3);
-    }
-
-    /// Scroll up in feature view
-    pub fn scroll_up(&mut self) {
-        self.scroll_offset = self.scroll_offset.saturating_sub(3);
     }
 
     /// Enter edit mode for current action
@@ -289,13 +247,6 @@ impl App {
         }
     }
 
-    /// Get the currently selected feature
-    pub fn current_feature(&self) -> Option<&crate::types::Feature> {
-        self.story
-            .as_ref()
-            .and_then(|s| s.narrative.get(self.selected_feature))
-    }
-
     /// Move picker selection down
     pub fn picker_down(&mut self) {
         if self.picker_selected < self.pr_list.len().saturating_sub(1) {
@@ -311,12 +262,6 @@ impl App {
     /// Get currently selected PR in picker
     pub fn selected_pr(&self) -> Option<&PrListItem> {
         self.pr_list.get(self.picker_selected)
-    }
-
-    /// Open the PR picker
-    pub fn open_picker(&mut self) {
-        self.show_picker = true;
-        self.state = AppState::PrPicker;
     }
 
     /// Close the PR picker
@@ -344,15 +289,6 @@ impl App {
         self.repo_list.get(self.repo_selected)
     }
 
-    /// Select the current repo and move to PR picker
-    pub fn select_repo(&mut self) {
-        if let Some(repo) = self.selected_repo() {
-            self.current_repo = Some((repo.owner.clone(), repo.name.clone()));
-            self.state = AppState::LoadingPrList;
-            self.show_picker = true;
-        }
-    }
-
     /// Go back to repo selector from PR picker
     pub fn back_to_repo_selector(&mut self) {
         self.show_picker = false;
@@ -370,6 +306,7 @@ impl App {
         self.viewed_diffs.clear();
         self.action_texts = ActionTexts::default();
         self.show_picker = false;
+        self.current_pr_number = None;
     }
 }
 

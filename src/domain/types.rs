@@ -52,16 +52,6 @@ pub enum Significance {
     Noise,    // Mechanical: imports, formatting, boilerplate
 }
 
-impl Significance {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Significance::Key => "key",
-            Significance::Standard => "standard",
-            Significance::Noise => "noise",
-        }
-    }
-}
-
 /// Focus section telling reviewers where to spend time
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Focus {
@@ -137,7 +127,6 @@ pub struct RepoListItem {
     pub owner: String,
     pub name: String,
     pub description: String,
-    pub open_pr_count: u32,
     pub is_fork: bool,
     pub is_private: bool,
 }
@@ -168,14 +157,6 @@ impl ReviewAction {
             ReviewAction::RequestChanges => "Request Changes",
             ReviewAction::ClarificationQuestions => "Clarification Questions",
             ReviewAction::NextPr => "Next PR",
-        }
-    }
-
-    pub fn description(&self) -> &'static str {
-        match self {
-            ReviewAction::RequestChanges => "Post a review requesting changes",
-            ReviewAction::ClarificationQuestions => "Ask the author for clarification",
-            ReviewAction::NextPr => "Create issue + comment linking to follow-up work",
         }
     }
 }
